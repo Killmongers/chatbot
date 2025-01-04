@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Train Bookings</title>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 10px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        td {
+            word-wrap: break-word;
+            max-width: 200px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Train Booking Details</h1>
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Source</th>
+                <th>Destination</th>
+                <th>Travel Date</th>
+                <th>Train Name</th>
+                <th>Train Number</th>
+                <th>Departure Time</th>
+                <th>Arrival Time</th>
+                <th>Duration</th>
+                <th>Class</th>
+                <th>Travelers</th>
+                <th>Phone Number</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for booking in bookings %}
+            <tr>
+                <td>{{ booking.id }}</td>
+                <td>{{ booking.source }}</td>
+                <td>{{ booking.destination }}</td>
+                <td>{{ booking.travel_date }}</td>
+                <td>{{ booking.train_name }}</td>
+                <td>{{ booking.train_number }}</td>
+                <td>{{ booking.departure_time }}</td>
+                <td>{{ booking.arrival_time }}</td>
+                <td>{{ booking.duration }}</td>
+                <td>{{ booking.class_details }}</td>
+                <td>
+                    {% for traveler in booking.travelers %}
+                        <strong>{{ traveler.name }}</strong> (Age: {{ traveler.age }}, Gender: {{ traveler.gender.capitalize() }})<br>
+                    {% endfor %}
+                </td>
+                <td>{{ booking.phone_number }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>
