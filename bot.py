@@ -351,35 +351,26 @@ def whatsapp_reply():
     message = response.message()
 
     # Handle restart command first, before any other processing
-    if incoming_msg == 'restart':
-        session = user_sessions.get(sender, initialize_passenger_session())
-        session["step"] = 1 # Reset to step 0, or possibly skip this step if you want to resume
-        user_sessions[sender] = session  # Reset session state
-        message.body("Welcome to the Booking Bot! ✈️\n\nPlease choose an option:\n🚆1. Book a Train\n✈️2. Book a Flight")
-        return str(response)
+
 
     # Get or initialize session
     session = user_sessions.get(sender, initialize_passenger_session())
 
     # Initial step handling
-    if session["step"] == 0:
-        message.body("Welcome to the Booking Bot! \n\nPlease choose an option:\n🚆1. Book a Train\n✈️2. Book a Flight.")
+    if session["step"] == 0 or incoming_msg=='restart':
+        message.body("Welcome to the Booking Bot! \n\nPlease choose an option:\n1. Book a Train\n2. Book a Flight\n3.check PNR\n4.")
         session["step"] = 1
-        user_sessions[sender] = session  # Ensure session is saved
+        
         
     elif session["step"] == 1:
         if incoming_msg == "1":
             message.body("You've selected Train Booking.\n\nPlease enter your source station (e.g., New Delhi):")
             session["step"] = 11
-            user_sessions[sender] = session  # Save session after update
         elif incoming_msg == "2":
             message.body("You've selected Flight Booking.\n\nPlease enter your departure airport (e.g., JFK):")
             session["step"] = 10
-            user_sessions[sender] = session  # Save session after update
         else:
-            # Handle invalid choice and keep user in the same step
             message.body("❌ Invalid choice. Please reply with '1' for Train or '2' for Flight.")
-            user_sessions[sender] = session  # Ensure session stays in step 1
             return str(response)
 
     elif session["step"] == 11:  # Get source station
