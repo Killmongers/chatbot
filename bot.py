@@ -292,18 +292,18 @@ def save_booking_details(session, selected_flight_data, conn):
         conn.rollback()
         return None
 
-def initialize_passenger_session():
-    """Initialize a new passenger session"""
-    return {
-        "step": 0,
-        "data": {},
-        "flight_list": [],
-        "current_index": 0,
-        "selected_flight": None,
-        "current_passenger": 1,
-        "passenger_details": [],
-        "booking_id": None
-    }
+# def initialize_passenger_session():
+#     """Initialize a new passenger session"""
+#     return {
+#         "step": 0,
+#         "data": {},
+#         "flight_list": [],
+#         "current_index": 0,
+#         "selected_flight": None,
+#         "current_passenger": 1,
+#         "passenger_details": [],
+#         "booking_id": None
+#     }
 
 # Function to get airport code by city name
 def get_airport_code(airport_name):
@@ -343,37 +343,12 @@ def format_flight_details(flight_list, start_idx, batch_size=5):
     return "\n\n".join(formatted_flights), end_idx
 
 
-@app.route("/whatsapp", methods=['POST'])
-def whatsapp_reply():
-    incoming_msg = request.values.get('Body', '').strip().lower()
-    sender = request.values.get('From', '').strip()
-    response = MessagingResponse()
-    message = response.message()
-
-    # Handle restart command first, before any other processing
-
-
-    # Get or initialize session
-    session = user_sessions.get(sender, initialize_passenger_session())
-
-    # Initial step handling
-    if session["step"] == 0 or incoming_msg=='restart':
-        message.body("Welcome to the Booking Bot! \n\nPlease choose an option:\n1. Book a Train\n2. Book a Flight\n3.check PNR\n4.")
-        session["step"] = 1
-        
-        
-    elif session["step"] == 1:
-        if incoming_msg == "1":
-            message.body("You've selected Train Booking.\n\nPlease enter your source station (e.g., New Delhi):")
-            session["step"] = 11
-        elif incoming_msg == "2":
-            message.body("You've selected Flight Booking.\n\nPlease enter your departure airport (e.g., JFK):")
-            session["step"] = 10
-        else:
-            message.body("❌ Invalid choice. Please reply with '1' for Train or '2' for Flight.")
-            return str(response)
-
-    elif session["step"] == 11:  # Get source station
+def handle_train_booking(session, incoming_msg, message):
+    """
+    Handle train booking logic based on current step
+    Returns: Updated session and message response
+    """
+    if session["step"] == 11:  # Get source station
         source_code = get_station_code(incoming_msg)
         if source_code:
             session["data"]["source"] = source_code
@@ -390,6 +365,7 @@ def whatsapp_reply():
             session["step"] = 3
         else:
             message.body("❌ Sorry, I couldn't find that station. Please try again.")
+
     elif session["step"] == 3:  # Get travel date
         try:
             travel_date = datetime.strptime(incoming_msg, "%d-%m-%y").date()
@@ -398,21 +374,16 @@ def whatsapp_reply():
             session["step"] = 4
         except ValueError:
             message.body("❌ Invalid date format. Please enter the date in the format DD-MM-YY.")
+
     elif session["step"] == 4:  # Confirm the details
         if incoming_msg.lower() == "confirm":
-            # Retrieve session data (source, destination, and date)
             details = session["data"]
-            
-            # Fetch trains for the given route and date
             trains = get_trains_between_stations(details["source"], details["destination"], details["date"].strftime("%y-%m-%d"))
-            
-            # Store fetched train details in session
             session["data"]["trains"] = trains
             
             if trains:
-                # Prepare the message with train options
                 train_list = "🚉 **Trains Found**:\n\n"
-                for idx, train in enumerate(trains[:12]):  # Show the first 12 trains
+                for idx, train in enumerate(trains[:12]):
                     train_list += (
                         f"{idx + 1}. 🚆 {train.get('train_name', 'Unknown Train')} ({train.get('train_number', 'N/A')}) "
                         f"({train.get('train_date', 'N/A')})\n"
@@ -421,28 +392,13 @@ def whatsapp_reply():
                     )
                 train_list += "Reply with the train number (e.g., '1') to select a train or type 'other' to enter a train manually."
                 message.body(train_list)
-                session["step"] = 5  # Move to step 5 (train selection)
-            elif incoming_msg.lower() == "restart":
-            # Restart the process if user chooses 'restart'
-                message.body("🔄 Alright, let's start over. Please enter your departure station.")
-                session["step"] = 1
+                session["step"] = 5
             else:
-                # If no trains found, ask the user to manually input a train
                 message.body(
                     "❌ No trains found for the given route and date. Please provide a train number and name manually.\n\n"
                     "Reply with the train name and number like this: 'Train Name, Train Number'."
                 )
-                session["step"] = 8  # Move to manual input step
-
-        elif incoming_msg.lower() == "restart":
-            # Restart the process if user chooses 'restart'
-            message.body("🔄 Alright, let's start over. Please enter your departure station.")
-            session["step"] = 1  # Go back to step 1 (departure station input)
-        
-        else:
-            # Handle invalid input for confirmation or restart
-            message.body("❌ Invalid response. Reply 'confirm' to proceed or 'restart' to start over.")
-
+                session["step"] = 8
 
     elif session["step"] == 5:  # Train selection step
         if "trains" not in session["data"] or not session["data"]["trains"]:
@@ -557,7 +513,15 @@ def whatsapp_reply():
         else:
             message.body("❌ Invalid phone number. Please provide a valid phone number with country code (e.g., +911234567890).")
 
-    elif session["step"] == 10:
+
+    return session
+
+def handle_flight_booking(session, incoming_msg, message):
+    """
+    Handle flight booking logic based on current step
+    Returns: Updated session and message response
+    """
+    if session["step"] == 10:  # Get departure airport
         from_code = get_airport_code(incoming_msg)
         if from_code:
             session["data"]["source"] = from_code
@@ -566,8 +530,7 @@ def whatsapp_reply():
         else:
             message.body(f"Sorry, we couldn't find an airport code for '{incoming_msg}'. Please provide a valid city name.")
 
-    # Step 2: Destination airport
-    elif session["step"] == 12:
+    elif session["step"] == 12:  # Get destination airport
         to_code = get_airport_code(incoming_msg)
         if to_code:
             session["data"]["destination"] = to_code
@@ -576,8 +539,7 @@ def whatsapp_reply():
         else:
             message.body(f"Sorry, we couldn't find an airport code for '{incoming_msg}'. Please provide a valid city name.")
 
-    # Step 3: Travel date
-    elif session["step"] == 13:
+    elif session["step"] == 13:  # Get travel date
         try:
             travel_date = datetime.strptime(incoming_msg, "%d-%m-%Y").strftime("%Y-%m-%d")
             session["data"]["travel_date"] = travel_date
@@ -586,8 +548,7 @@ def whatsapp_reply():
         except ValueError:
             message.body("Invalid date format. Please use DD-MM-YYYY.")
 
-    # Step 4: Passenger count
-    elif session["step"] == 14:
+    elif session["step"] == 14:  # Get passenger count
         try:
             adults, children, infants = map(int, incoming_msg.split(','))
             if all(count >= 0 for count in [adults, children, infants]):
@@ -602,7 +563,6 @@ def whatsapp_reply():
                 message.body("Please enter valid numbers for passengers (adults,children,infants).")
         except ValueError:
             message.body("Invalid format. Please enter numbers separated by commas (e.g., 2,1,1)")
-
     # Step 5: Email address collection
     elif session["step"] == 15:
         email_regex = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
@@ -771,10 +731,75 @@ def whatsapp_reply():
                 message.body("An error occurred while processing your booking. Please try again.")
         else:
             message.body("Invalid phone number format. Please include country code (e.g., +1234567890)")
+    return session
+
+def handle_restart(sender, message):
+    """
+    Handle restart command and initialize new session
+    Returns: New session
+    """
+    new_session = {
+        "step": 1,  # Changed from 0 to 1 to avoid welcome message loop
+        "data": {},
+        "flight_list": [],
+        "current_index": 0,
+        "selected_flight": None,
+        "current_passenger": 1,
+        "passenger_details": [],
+        "booking_id": None
+    }
+    message.body("Welcome to the 🤖Booking Bot! \n\nPlease choose an option:\n🚉1. Book a Train\n✈️2. Book a Flight\n🔢3. Check PNR\n4. View Bookings")
+    return new_session
+
+@app.route("/whatsapp", methods=['POST'])
+def whatsapp_reply():
+    incoming_msg = request.values.get('Body', '').strip().lower()
+    sender = request.values.get('From', '').strip()
+    response = MessagingResponse()
+    message = response.message()
+
+    # Get or initialize session
+    if incoming_msg == 'restart' or sender not in user_sessions:
+        user_sessions[sender] = handle_restart(sender, message)
+        return str(response)
+
+    session = user_sessions[sender]
+
+    # Handle main menu selection
+    if session["step"] == 1:
+        if incoming_msg == "1":
+            message.body("🚉 You've selected Train Booking.\n\nPlease enter your source station (e.g., New Delhi):")
+            session["step"] = 11
+        elif incoming_msg == "2":
+            message.body("✈️You've selected Flight Booking.\n\nPlease enter your departure airport (e.g., JFK):")
+            session["step"] = 10
+        elif incoming_msg == "3":
+            message.body("🔢Please enter your PNR number:")
+            session["step"] = 20  # New step for PNR check
+        elif incoming_msg == "4":
+            message.body("Redirecting to bookings page...")
+            # Here you can add logic to show bookings
+            session["step"] = 1  # Reset to main menu
+        else:
+            message.body("❌ Invalid choice. Please reply with a number between 1 and 4.")
+            return str(response)
+    
+    # Handle train booking steps
+    elif 2 <= session["step"] <= 9 or session["step"] == 11:
+        session = handle_train_booking(session, incoming_msg, message)
+    
+    # Handle flight booking steps
+    elif 10 <= session["step"] <= 18 and session["step"] != 11:
+        session = handle_flight_booking(session, incoming_msg, message)
+    
+    # Handle PNR check
+    elif session["step"] == 20:
+        # Add PNR check logic here
+        message.body(f"Checking PNR: {incoming_msg}\nThis feature is coming soon.")
+        session["step"] = 1  # Return to main menu
 
     user_sessions[sender] = session
     return str(response)
-
 # Function to save booking to database
 def save_booking(data):
 
