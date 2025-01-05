@@ -382,24 +382,24 @@ def handle_train_booking(session_data, incoming_msg, message):
         destination_code = get_station_code(incoming_msg)
         if destination_code:
             session_data["data"]["destination"] = destination_code
-            message.body("✈️ Got it! Now, What is your travel date? (format: DD-MM-YY):")
+            message.body("✈️ Got it! Now, What is your travel date? (format: DD-MM-YYYY):")
             session_data["step"] = 3
         else:
             message.body("❌ Sorry, I couldn't find that station. Please try again.")
 
     elif session_data["step"] == 3:  # Get travel date
         try:
-            travel_date = datetime.strptime(incoming_msg, "%d-%m-%y").date()
+            travel_date = datetime.strptime(incoming_msg, "%d-%m-%Y").date()
             session_data["data"]["date"] = travel_date
-            message.body(f"Your details: \n🗣️ Source: {session_data['data']['source']} \n📍 Destination: {session_data['data']['destination']} \n📅 Date: {travel_date.strftime('%d-%m-%y')}\n\nPlease reply 'confirm' to proceed or 'restart' to change.")
+            message.body(f"Your details: \n🗣️ Source: {session_data['data']['source']} \n📍 Destination: {session_data['data']['destination']} \n📅 Date: {travel_date.strftime('%d-%m-%Y')}\n\nPlease reply 'confirm' to proceed or 'restart' to change.")
             session_data["step"] = 4
         except ValueError:
-            message.body("❌ Invalid date format. Please enter the date in the format DD-MM-YY.")
+            message.body("❌ Invalid date format. Please enter the date in the format DD-MM-YYYY.")
 
     elif session_data["step"] == 4:  # Confirm the details
         if incoming_msg.lower() == "confirm":
             details = session_data["data"]
-            trains = get_trains_between_stations(details["source"], details["destination"], details["date"].strftime("%y-%m-%d"))
+            trains = get_trains_between_stations(details["source"], details["destination"], details["date"].strftime("%Y-%m-%d"))
             session_data["data"]["trains"] = trains
             
             if trains:
@@ -489,12 +489,12 @@ def handle_train_booking(session_data, incoming_msg, message):
             session_data["data"]["class_details"] = class_details
 
             # Confirm the class selection and proceed to traveler details
-            message.body(f"✅ Class selected: {class_details.capitalize()}.\nNow, please provide traveler details.\nReply with Name, Age, Gender \n Name, Age, Gender  for each traveler.")
+            message.body(f"✅ Class selected: {class_details.capitalize()}.\n\nNow, please provide traveler details for each traveler.\n\nReply with Full Name, Age, Gender \n\n if more then one passanger add in next line\n\neg:name,age,gender\n  name,age,gender ")
             session_data["step"] = 7  # Move to traveler details step
         else:
             # Handle invalid class selection
             message.body("❌ Invalid class selection. Please choose from:\n1. General\n2. Sleeper\n3. 3AC\n4. 2AC\n5. 1AC.")
-            return str(response)  # Stop further processing if the class is invalid
+             # Stop further processing if the class is invalid
 
     elif session_data["step"] == 7:  # Traveler details input
         # Split the input by new lines, assuming each traveler is entered on a separate line
@@ -655,7 +655,8 @@ def handle_flight_booking(session_data, incoming_msg, message):
                 session_data["selected_flight"] = session_data["flight_list"][selection - 1]
                 message.body(
                     "Please enter passenger details for Adult 1:\n"
-                    "Format: Given names, Last name, Gender (M/F), Date of birth (DD-MM-YYYY), Nationality"
+                    "details:1.Given names\n2 Last name\n3.Gender (M/F)\n4.Date of birth (DD-MM-YYYY)\n5.Nationality"
+                    "eg:name,lastname,gender,dateofbirth,nationality"
                 )
                 session_data["step"] = 17
             else:
@@ -756,16 +757,17 @@ def handle_flight_booking(session_data, incoming_msg, message):
 
 def handle_restart(sender, message):
     """
-    Handle restart command and initialize new session
+    Handle restart command and initialize a new session
     Returns: New session
     """
-    new_session = initialize_session()
-    message.body("Welcome to the 🤖Booking Bot! \n\nPlease choose an option:\n🚉1. Book a Train\n✈️2. Book a Flight\n🔢3. Check PNR\n4. View Bookings")
+    new_session = initialize_session()  # Initialize a new session
+    message.body("Type 0 for restart")
     return new_session
+
 def get_session_data():
     """Get or create new session data"""
     if 'session_data' not in session:
-        session['session_data'] = initialize_session()
+        session['session_data'] = initialize_session()  # Create a new session
     return session['session_data']
 
 def save_session_data(data):
@@ -778,49 +780,60 @@ def whatsapp_reply():
     sender = request.values.get('From', '').strip()
     response = MessagingResponse()
     message = response.message()
+  
+    session_data = get_session_data()  # Get or create session data
 
-    session_data = get_session_data()
+    # Restart command - Initialize a new session
     if incoming_msg == 'restart':
         session_data = handle_restart(sender, message)
-        save_session_data(session_data)
+        save_session_data(session_data)  # Save the new session data
         return str(response)
 
-    
+    # If it's the first message after the HTML is sent (e.g., "Hi"), show the options
+    if session_data["step"] == 0:
+        # This step happens after the initial greeting has been sent
+        message.body("Hello! 👋 I’m here to assist you with bookings.\n\nPlease choose an option:\n🚉1. Book a Train\n✈️2. Book a Flight.")
+        session_data["step"] = 1  # Transition to the main menu step after receiving input
+        save_session_data(session_data)  # Save session data after showing options
+        return str(response)
 
-    # Handle main menu selection
+    # Handle main menu selection after user input
     if session_data["step"] == 1:
         if incoming_msg == "1":
             message.body("🚉 You've selected Train Booking.\n\nPlease enter your source station (e.g., New Delhi):")
             session_data["step"] = 11
         elif incoming_msg == "2":
-            message.body("✈️You've selected Flight Booking.\n\nPlease enter your departure airport (e.g., JFK):")
+            message.body("✈️ You've selected Flight Booking.\n\nPlease enter your departure airport (e.g., New Delhi):")
             session_data["step"] = 10
         elif incoming_msg == "3":
-            message.body("🔢Please enter your PNR number:")
+            message.body("🔢 Please enter your PNR number:")
             session_data["step"] = 20  # New step for PNR check
-        elif incoming_msg == "4":
-            message.body("Redirecting to bookings page...")
-            # Here you can add logic to show bookings
-            session= initialize_session()  # Reset to main menu
+        # elif incoming_msg == "4":
+        #     message.body("Redirecting to bookings page...")
+            # Show the bookings here (optional logic)
+            session_data = initialize_session()  # Reset to main menu
+            session_data["step"] = 0  # Make sure step 0 is set
         else:
             message.body("❌ Invalid choice. Please reply with a number between 1 and 4.")
-            return str(response)
-    
-    # Handle train booking steps
+            session_data["step"] = 0  # Reset to main menu
+        save_session_data(session_data)  # Save the updated session data
+        return str(response)
+
+    # Handle train booking steps (from step 2 to 9 or step 11)
     elif 2 <= session_data["step"] <= 9 or session_data["step"] == 11:
         session = handle_train_booking(session_data, incoming_msg, message)
-    
-    # Handle flight booking steps
+
+    # Handle flight booking steps (from step 10 to 18)
     elif 10 <= session_data["step"] <= 18 and session_data["step"] != 11:
         session = handle_flight_booking(session_data, incoming_msg, message)
-    
+
     # Handle PNR check
     elif session_data["step"] == 20:
-        # Add PNR check logic here
         message.body(f"Checking PNR: {incoming_msg}\nThis feature is coming soon.")
-        session_data["step"] = 1  # Return to main menu
+        session_data["step"] = 0  # Return to main menu after PNR check
+        save_session_data(session_data)  # Save session data after handling PNR
+        return str(response)
 
-    
     return str(response)
 # Function to save booking to database
 def save_booking(data):
@@ -876,12 +889,7 @@ def fetch_bookings():
     return formatted_bookings
 
 
-# Route to display the details in JSON format
-# @app.route('/train_bookings', methods=['GET'])
-# def show_bookings_json():
-#     bookings = fetch_bookings()
-#     # Return bookings as JSON
-    # return jsonify(bookings)
+
 
 # Route to display the details in an HTML table (user-friendly)
 @app.route('/train_bookings', methods=['GET'])
