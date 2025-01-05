@@ -315,7 +315,7 @@ def save_booking_details(session, selected_flight_data, conn):
 def initialize_session():
     """Initialize a new session with default values"""
     return {
-        "step": 1,
+        "step": 0,
         "data": {},
         "flight_list": [],
         "current_index": 0,
